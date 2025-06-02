@@ -16,7 +16,8 @@ if not CHROME_DRIVER_PATH.exists():
         "2. Verifica la version de ChromeDriver compatible Chrome"
     )
 
-
+LINKEDIN_USER = os.getenv('LINKEDIN_USER')
+LINKEDIN_PASSOWRD = os.getenv('LINKEDIN_PASSOWRD')
 
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
