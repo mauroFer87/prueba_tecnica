@@ -52,4 +52,4 @@ def normalizar(texto):
 
 
 from datetime import datetime
-fechaExtraccion = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+fecha_extraccion = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
