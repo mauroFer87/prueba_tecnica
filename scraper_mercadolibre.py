@@ -7,30 +7,13 @@
 # o Rate limiting moderado
 
 
-# producto, precio, vendedor, ubicacion, reputacion_vendedor,
-# fecha_extraccion ,url _producto ,disponible ,envio_gratis, categoria
+
 import time
-from config import getDriver, normalizar,fechaExtraccion
+from config import getDriver, fecha_extraccion
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException
-
-
-url = 'https://listado.mercadolibre.com.ar/'
-
-driver = getDriver()
-wait = WebDriverWait(driver, 10)
-
-# Keywords normalizadas (en minúsculas y sin tildes)
-keywords = ["notebooks", "smartphones", "electrodomesticos"]
-
-urls = list(map(lambda k: url + k, keywords))
-
-
-
-
-driver.get('https://listado.mercadolibre.com.ar/notebooks')
 
 
 def scroll_hasta_el_final(driver):
@@ -51,24 +34,36 @@ def scroll_hasta_el_final(driver):
         intentos += 1
 
 
-def extraer_datos_productos(driver):
+
+url = 'https://listado.mercadolibre.com.ar/'
+
+driver = getDriver()
+
+productos = ["notebooks", "smartphones", "electrodomesticos"]
 
 
-    scroll_hasta_el_final(driver)  # 👉 Forzamos a cargar todos los productos
 
+def extraer_datos_productos(url, producto, fecha_extraccion, driver):
+
+    urlCompleta = url + producto
+    driver.get(urlCompleta)
 
     productos = []
     
-    # Esperar a que los productos estén cargados
+
     WebDriverWait(driver, 10).until(
         EC.visibility_of_all_elements_located((By.CSS_SELECTOR, ".ui-search-result__wrapper"))
     )
     
     # Localizar todos los productos en la página
-    elementos_productos = driver.find_elements(By.CSS_SELECTOR, ".ui-search-result__wrapper")
-    print(f"Se encontraron {len(elementos_productos)} productos.")
+    todosElementosProductos = driver.find_elements(By.CSS_SELECTOR, ".ui-search-result__wrapper")
 
-    for i, producto in enumerate(elementos_productos):
+    # Scroll suave
+    for i in range(0, 3000, 100):
+        driver.execute_script("window.scrollBy(0, 100);")
+        time.sleep(0.2)
+
+    for i, producto in enumerate(todosElementosProductos):
 
         try:
             nombre = producto.find_element(By.CLASS_NAME, "poly-component__title-wrapper").text
@@ -112,33 +107,8 @@ def extraer_datos_productos(driver):
 
 
 
-def paginacion():
-    try:
-        # Esperar y cerrar cookies si aparecen
-        try:
-            boton_aceptar_cookies = WebDriverWait(driver, 5).until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR, ".cookie-consent-banner-opt-out__action--key-accept"))
-            )
-            boton_aceptar_cookies.click()
-            print("Banner de cookies cerrado.")
-        except:
-            print("No apareció el banner de cookies.")
-
-        # Esperar que el botón de "Siguiente" esté presente y sea clickeable
-        boton_siguiente = WebDriverWait(driver, 5).until(
-            EC.element_to_be_clickable((By.CSS_SELECTOR, ".andes-pagination__button--next a"))
-        )
-
-        driver.execute_script("arguments[0].click();", boton_siguiente)
-        print("Pasaste a la siguiente página")
-        time.sleep(5)
-
-    except Exception as e:
-        print("No se pudo avanzar a la siguiente página:", str(e))
 
 
 
-
-
-producto = extraer_datos_productos(driver)
+producto = extraer_datos_productos(url,'notebooks', fecha_extraccion, driver)
 print(producto)

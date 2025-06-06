@@ -41,29 +41,6 @@ def login(driver):
 
 
 
-def ir_a_siguiente_pagina(driver):
-    try:
-        boton_siguiente = driver.find_element(By.CSS_SELECTOR, "button.jobs-search-pagination__button--next")
-        if boton_siguiente.is_enabled():
-            driver.execute_script("arguments[0].scrollIntoView();", boton_siguiente)
-            boton_siguiente.click()
-            time.sleep(2)  # Esperar que cargue la nueva página
-            return True
-        else:
-            print("Botón siguiente deshabilitado.")
-            return False
-    except NoSuchElementException:
-        print("No se encontró el botón 'Siguiente'.")
-        return False
-    except ElementClickInterceptedException:
-        print("No se pudo hacer clic en el botón 'Siguiente'.")
-        return False
-
-
-
-
-
-
 def obtener_info_trabajo(titulo_puesto,url_empleo,fecha_extraccion,driver):
 
     WebDriverWait(driver, 5).until(
@@ -135,8 +112,6 @@ def obtener_info_trabajo(titulo_puesto,url_empleo,fecha_extraccion,driver):
 
 
 
-
-
 def buscador(driver, keyword):
     # Setup Selenium
     driver.get("https://www.linkedin.com/jobs/search/")
@@ -154,10 +129,10 @@ def buscador(driver, keyword):
     search_button.click()
 
 
-
-
 def recolector(fecha_extraccion, driver):
-    driver.get('file:///C:/Users/mauro/OneDrive/Desktop/prueba_tecnica/prueba.html') #https://www.linkedin.com/jobs/search/
+    driver.get('file:///C:/Users/mauro/OneDrive/Desktop/prueba_tecnica/prueba.html') # funcion usada para construir el codigo
+
+    #driver.get('https://www.linkedin.com/jobs/search/') # funcion real de linkedin
     
 
     WebDriverWait(driver, 13).until(
@@ -183,6 +158,9 @@ def recolector(fecha_extraccion, driver):
     
     # Obtener los títulos y Links de los trabajos. Luego entrar a estos
     jobCards = contenedorIzquierda.find_elements(By.CLASS_NAME, "job-card-list__title--link")
+
+    listaInfoTrabajos = []
+
     for job in jobCards:
         infoTrabajo = []
         try:
@@ -205,47 +183,10 @@ def recolector(fecha_extraccion, driver):
             print(info)
 
         break
+        listaInfoTrabajos.append(infoTrabajo)
 
         
 
-
-    # # Lista de trabajos ya procesados
-    # trabajos_vistos = set()
-    # last_height = 0
-    # same_count = 0
-
-    # while True:
-    #     # Obtener trabajos visibles
-    #     trabajos = driver.find_elements(By.CSS_SELECTOR, "qlmXknNlIkXfrVatgaBxEDBvXSmqHOibKM") #li.jobs-search-results__list-item
-
-    #     for trabajo in trabajos:
-    #         li = trabajo.find_element(By.CLASS_NAME,'job-card-container__link')
-    #         print('imprimiendo li')
-    #         print(li)
-    #         job_id = 1
-    #         try:
-    #             trabajos_vistos.add(job_id)
-    #             driver.execute_script("arguments[0].scrollIntoView();", trabajo)
-    #             time.sleep(0.3)
-    #             trabajo.click()
-    #             #obtener_info_trabajo(driver)
-    #         except (ElementClickInterceptedException, StaleElementReferenceException):
-    #             continue
-    #     break
-
-        # # Scroll al final para cargar más trabajos
-        # driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight", scroll_area)
-        # time.sleep(4)
-
-        # new_height = driver.execute_script("return arguments[0].scrollHeight", scroll_area)
-        # if new_height == last_height:
-        #     same_count += 1
-        #     if same_count >= 3:
-        #         print("Fin del scroll.")
-        #         break
-        # else:
-        #     same_count = 0
-        #     last_height = new_height
 
 
 
