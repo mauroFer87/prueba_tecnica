@@ -12,118 +12,160 @@
 # salario_estimado
 
 import time
-from config import getDriver, fecha_extraccion, LINKEDIN_USER, LINKEDIN_PASSOWRD, scroll_hasta_el_final
+from config import getDriver, fecha_extraccion, LINKEDIN_USER, LINKEDIN_PASSWORD
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import ElementClickInterceptedException, StaleElementReferenceException,NoSuchElementException
+from selenium.common.exceptions import ElementClickInterceptedException, StaleElementReferenceException,NoSuchElementException, WebDriverException, TimeoutException
 
 
 
-
-#Funcion para loguiarse en linkedin
+# Función para iniciar sesión en LinkedIn
 def login(driver):
-    # Ir a la página de login
-    driver.get("https://www.linkedin.com/login")
+    try:
+        # Ir a la página de inicio de sesión
+        driver.get("https://www.linkedin.com/login")
 
-    wait = WebDriverWait(driver, 15)
-    # Ingresar usuario y contraseña
-    username = wait.until(EC.presence_of_element_located((By.ID, "username")))
-    password = wait.until(EC.presence_of_element_located((By.ID, "password")))
+        # Esperar hasta que el campo de usuario esté presente (máximo 15 segundos)
+        wait = WebDriverWait(driver, 15)
+        username = wait.until(EC.presence_of_element_located((By.ID, "username")))
+        password = wait.until(EC.presence_of_element_located((By.ID, "password")))
 
-    username.send_keys(LINKEDIN_USER)
-    password.send_keys(LINKEDIN_PASSOWRD)
+        # Completar credenciales 
+        username.send_keys(LINKEDIN_USER)
+        password.send_keys(LINKEDIN_PASSWORD)
 
-    # Click en el botón de login
+        # Esperar y hacer clic en el botón de login
+        login_button = wait.until(EC.element_to_be_clickable((By.XPATH, '//button[@type="submit"]')))
+        login_button.click()
 
-    login_button = wait.until(EC.element_to_be_clickable((By.XPATH, '//button[@type="submit"]')))
-    login_button.click()
-    time.sleep(20)
+        # Esperar unos segundos para que cargue la página
+        time.sleep(20)
+
+    except TimeoutException:
+        print("[ERROR] Timeout: Un elemento no se cargó a tiempo. Posible conexión lenta o cambios en el sitio.")
+    except NoSuchElementException:
+        print("[ERROR] Elemento no encontrado: Es posible que la estructura HTML haya cambiado.")
+    except WebDriverException as e:
+        print(f"[ERROR] Problema con el WebDriver o la conexión: {e}")
+    except Exception as e:
+        print(f"[ERROR] Error inesperado: {e}")
 
 
-#funcion para buscar los trabajos
+
+
+
+
+
+
+
+# Función para buscar trabajos en LinkedIn
 def buscador(driver, trabajoBusqueda):
+    try:
+        # Cargar la página de búsqueda de empleos
+        driver.get("https://www.linkedin.com/jobs/search/")
 
-    driver.get("https://www.linkedin.com/jobs/search/")
+        # Esperar que se cargue un elemento clave del menú superior (15s máximo)
+        WebDriverWait(driver, 15).until(
+            EC.presence_of_element_located((By.CLASS_NAME, 'global-nav__content'))
+        )
 
-    WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.CLASS_NAME, 'global-nav__content')))
+        # Buscar el input del buscador de palabras clave
+        keyword_input = driver.find_element(By.CSS_SELECTOR, "input.jobs-search-box__text-input")
+        keyword_input.clear()  # Limpiar el input
+        keyword_input.send_keys(trabajoBusqueda)  # Escribir el término de búsqueda
+        time.sleep(1)
 
-    # Buscar el input del buscador
-    keyword_input = driver.find_element(By.CSS_SELECTOR, "input.jobs-search-box__text-input")
-    keyword_input.clear()
-    keyword_input.send_keys(trabajoBusqueda)
-    time.sleep(1)
+        # Hacer clic en el botón de búsqueda
+        search_button = driver.find_element(By.CLASS_NAME, "jobs-search-box__submit-button")
+        search_button.click()
+        time.sleep(6)
 
-    # Clic en el botón buscar
-    search_button = driver.find_element(By.CLASS_NAME, "jobs-search-box__submit-button")
-    search_button.click()
-    time.sleep(6)
+        # Verificación opcional por si aparece un captcha o bloqueo
+        if "captcha" in driver.page_source.lower():
+            print("[ADVERTENCIA] Captcha detectado tras buscar trabajo. Podría tratarse de un bloqueo temporal.")
+
+    except TimeoutException:
+        print("[ERROR] Timeout: Algún elemento no cargó a tiempo. Puede deberse a lentitud o cambios en LinkedIn.")
+    except NoSuchElementException:
+        print("[ERROR] Elemento no encontrado: Es posible que LinkedIn haya cambiado su estructura HTML.")
+    except WebDriverException as e:
+        print(f"[ERROR] Problema de conectividad o WebDriver: {e}")
+    except Exception as e:
+        print(f"[ERROR] Ocurrió un error inesperado: {e}")
 
 
-def obtener_info_trabajo(id, titulo_puesto,url_empleo,fecha_extraccion,driver):
 
-    WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.CLASS_NAME, "jobs-search__job-details--container"))
-    )
-        
-     #Div derecho, descripcion de trabajos
-    contenedorDerecha = driver.find_element(By.CLASS_NAME,"jobs-search__job-details--container") 
 
+
+
+
+
+
+# Función para extraer información de un empleo desde la vista detallada del panel derecho
+def obtener_info_trabajo(id, titulo_puesto, url_empleo, fecha_extraccion, driver):
 
     try:
-        empresa = contenedorDerecha.find_element(By.CLASS_NAME, 'job-details-jobs-unified-top-card__company-name').text
-    except NoSuchElementException:
-        empresa = None
+        # Espera hasta que el contenedor derecho esté cargado (donde se encuentra la descripción del empleo)
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.CLASS_NAME, "jobs-search__job-details--container"))
+        )
 
-    
-    
-    try: #modalidad, jornada y nivel_experiencia estan dentro del mismo elemento
-        li_element = contenedorDerecha.find_element(By.CSS_SELECTOR, "li.job-details-jobs-unified-top-card__job-insight--highlight")
-        spans = li_element.find_elements(By.CSS_SELECTOR, "span[dir='ltr']")
+        # Obtener el contenedor con los detalles del empleo
+        contenedorDerecha = driver.find_element(By.CLASS_NAME, "jobs-search__job-details--container")
 
-        modalidad = spans[0].text if len(spans) > 0 else None
-        jornada = spans[1].text if len(spans) > 1 else None
-        nivel_experiencia = spans[2].text if len(spans) > 2 else None
+        # =================== Empresa ===================
+        try:
+            empresa = contenedorDerecha.find_element(
+                By.CLASS_NAME, 'job-details-jobs-unified-top-card__company-name'
+            ).text
+        except NoSuchElementException:
+            empresa = None
 
-    except NoSuchElementException:
-        modalidad = None
-        jornada = None
-        nivel_experiencia = None
+        # =================== Modalidad, Jornada, Nivel de experiencia ===================
+        try:
+            li_element = contenedorDerecha.find_element(
+                By.CSS_SELECTOR, "li.job-details-jobs-unified-top-card__job-insight--highlight"
+            )
+            spans = li_element.find_elements(By.CSS_SELECTOR, "span[dir='ltr']")
+            modalidad = spans[0].text if len(spans) > 0 else None
+            jornada = spans[1].text if len(spans) > 1 else None
+            nivel_experiencia = spans[2].text if len(spans) > 2 else None
+        except NoSuchElementException:
+            modalidad = jornada = nivel_experiencia = None
 
+        # =================== Ubicación y Fecha de publicación ===================
+        try:
+            info_div = contenedorDerecha.find_element(
+                By.CSS_SELECTOR, "div.job-details-jobs-unified-top-card__tertiary-description-container"
+            )
+            spans = info_div.find_elements(By.CSS_SELECTOR, "span.tvm__text.tvm__text--low-emphasis")
 
-    try:  #ubicacion y fecha_publicacion estan dentro del mismo elemento
-        container = contenedorDerecha.find_element(By.CSS_SELECTOR, "div.job-details-jobs-unified-top-card__primary-description-container")
-        info_div = contenedorDerecha.find_element(By.CSS_SELECTOR, "div.job-details-jobs-unified-top-card__tertiary-description-container")
-        spans = info_div.find_elements(By.CSS_SELECTOR, "span.tvm__text.tvm__text--low-emphasis")
+            ubicacion = None
+            fecha_publicacion = None
 
-        ubicacion = None
-        fecha_publicacion = None
+            for span in spans:
+                texto = span.text.strip()
+                if texto and texto != '·' and not ubicacion:
+                    ubicacion = texto
+                if texto.startswith("hace") and not fecha_publicacion:
+                    fecha_publicacion = texto
+        except NoSuchElementException:
+            ubicacion = fecha_publicacion = None
 
-        for span in spans:
-            texto = span.text.strip()
-            if texto and texto != '·' and not ubicacion:
-                ubicacion = texto
-            if texto.startswith("hace") and not fecha_publicacion:
-                fecha_publicacion = texto
+        # =================== Descripción breve del empleo ===================
+        try:
+            descripcion_div = contenedorDerecha.find_element(
+                By.CSS_SELECTOR, "div.jobs-box__html-content.jobs-description-content__text--stretch"
+            )
+            descripcion_breve = descripcion_div.text.strip()[:250]
+        except NoSuchElementException:
+            descripcion_breve = None
 
-    except NoSuchElementException:
-        ubicacion = None
-        fecha_publicacion = None
-
-
-
-
-    try:
-        descripcion_div = contenedorDerecha.find_element(By.CSS_SELECTOR, "div.jobs-box__html-content.jobs-description-content__text--stretch")
-        descripcion_breve = descripcion_div.text.strip()[:250]
-    except NoSuchElementException:
-        descripcion_breve = None
-
-
-
-    return {
-            "id" : id,
+        # =================== Retornar resultados ===================
+        return {
+            "id": id,
             "titulo_puesto": titulo_puesto,
             "empresa": empresa,
             "ubicacion": ubicacion,
@@ -135,59 +177,99 @@ def obtener_info_trabajo(id, titulo_puesto,url_empleo,fecha_extraccion,driver):
             "descripcion_breve": descripcion_breve
         }
 
+    except TimeoutException:
+        print(f"[ERROR] Timeout: No se cargaron los detalles del empleo para el ID {id}.")
+    except NoSuchElementException:
+        print(f"[ERROR] Elemento no encontrado: Puede que LinkedIn haya cambiado su estructura para el ID {id}.")
+    except WebDriverException as e:
+        print(f"[ERROR] WebDriver o red: {e}")
+    except Exception as e:
+        print(f"[ERROR] Error inesperado al obtener detalles del trabajo (ID {id}): {e}")
+    
+    # Si ocurre un error y no se retorna nada, devolvemos valores nulos para no romper el flujo
+    return {
+        "id": id,
+        "titulo_puesto": titulo_puesto,
+        "empresa": None,
+        "ubicacion": None,
+        "modalidad": None,
+        "nivel_experiencia": None,
+        "fecha_publicacion": None,
+        "fecha_extraccion": fecha_extraccion,
+        "url_empleo": url_empleo,
+        "descripcion_breve": None
+    }
+
 
 
 
 
 def recolector(fecha_extraccion, driver):
-    #driver.get('file:///C:/Users/mauro/OneDrive/Desktop/prueba_tecnica/prueba.html') # funcion usada para construir el codigo
-   
-    WebDriverWait(driver, 13).until(
-        EC.presence_of_element_located((By.CLASS_NAME, "scaffold-layout__content--list-detail")) #UL
-    )
+    try:
+        # Esperar que aparezca el contenedor principal de la lista de trabajos
+        WebDriverWait(driver, 13).until(
+            EC.presence_of_element_located((By.CLASS_NAME, "scaffold-layout__content--list-detail"))
+        )
 
-    # Obtener contenedor principal, donde apararece toda la informacion necesaria
-    contenedorPrincipal = driver.find_element(By.CLASS_NAME, "scaffold-layout__content--list-detail")
+        # Obtener contenedor principal
+        contenedorPrincipal = driver.find_element(By.CLASS_NAME, "scaffold-layout__content--list-detail")
 
-    
-    # Div principal, donde aparecen los trabajos
-    #scroll_area = contenedorPrincipal.find_element(By.CLASS_NAME, "tSivhBFvtczkIEFnsGKTrWShmUuVkbSQ") #clase dinamica   
-    scroll_area = driver.find_element(By.XPATH, '//*[@id="main"]/div/div[2]/div[1]/div')
+        # Área con scroll (lado izquierdo de los trabajos)
+        scroll_area = driver.find_element(By.XPATH, '//*[@id="main"]/div/div[2]/div[1]/div')
 
-    # Scroll suave
-    for i in range(0, 3000, 100):
-        driver.execute_script("arguments[0].scrollTop = arguments[1];", scroll_area, i)
-        time.sleep(0.2)
+        # Realizar scroll para que se carguen más trabajos (ajustar si necesario)
+        for i in range(0, 5000, 100):
+            driver.execute_script("arguments[0].scrollTop = arguments[1];", scroll_area, i)
+            time.sleep(0.1)
 
-    #Ul de trabajos
-    #contenedorIzquierda = contenedorPrincipal.find_element(By.CLASS_NAME, "UREiBoDFpFNCTlovSdZOWyybRiVqOHE") #clase dinamica
-    contenedorIzquierda = driver.find_element(By.XPATH, '//*[@id="main"]/div/div[2]/div[1]/div/ul')
+        # UL que contiene los jobs
+        contenedorIzquierda = driver.find_element(By.XPATH, '//*[@id="main"]/div/div[2]/div[1]/div/ul')
 
-    
-    # Obtener los títulos y Links de los trabajos. Luego entrar a estos
-    jobCards = contenedorIzquierda.find_elements(By.CLASS_NAME, "job-card-list__title--link")
+        # Obtener los enlaces a los trabajos
+        jobCards = contenedorIzquierda.find_elements(By.CLASS_NAME, "job-card-list__title--link")
 
-    listaInfoTrabajos = []
+        listaInfoTrabajos = []
 
-    for i, job in enumerate(jobCards):
-        try:
-            titulo_puesto = job.get_attribute("aria-label")
-        except NoSuchElementException:                  
-            titulo_puesto = None
+        for i, job in enumerate(jobCards):
+            try:
+                # Obtener datos preliminares
+                titulo_puesto = job.get_attribute("aria-label")
+                url_empleo = job.get_attribute("href")
 
-        try:
-            url_empleo = job.get_attribute('href')
-        except NoSuchElementException:                  
-            url_empleo = None
+                # Scroll al elemento para asegurar clic válido
+                driver.execute_script("arguments[0].scrollIntoView(true);", job)
+                time.sleep(0.2)
 
-        job.click()
-        
-        trabajo = obtener_info_trabajo(i, titulo_puesto, url_empleo, fecha_extraccion, driver)
-        
-        listaInfoTrabajos.append(trabajo)
+                job.click()
+                time.sleep(1)  # esperar a que cargue la descripción
 
-    return listaInfoTrabajos
-        
+                trabajo = obtener_info_trabajo(i, titulo_puesto, url_empleo, fecha_extraccion, driver)
+
+                listaInfoTrabajos.append(trabajo)
+
+            except (NoSuchElementException, TimeoutException, WebDriverException) as e:
+                print(f"[ERROR] No se pudo procesar job {i}: {e}")
+                continue  # Saltar al siguiente job si uno falla
+
+        return listaInfoTrabajos
+
+    except Exception as e:
+        print(f"[ERROR] Falló el recolector: {e}")
+        return []
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
