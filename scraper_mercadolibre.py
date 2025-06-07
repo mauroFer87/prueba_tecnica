@@ -9,15 +9,24 @@
 
 
 import time
+import random
 from config import getDriver, fecha_extraccion
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, TimeoutException, WebDriverException
 
+import logging
+from config import configurar_logging
+
+configurar_logging()
+logger = logging.getLogger(__name__)  # logger para este archivo específico
 
 
-import time
+
+
+
+
 
 def scroll_hasta_el_final(driver):
     """
@@ -36,6 +45,8 @@ def scroll_hasta_el_final(driver):
     MAX_SCROLL_INTENTOS = 20  # Máximo número de scrolls para evitar loops infinitos
 
     try:
+        logger.info("Inicio scroll hasta el final de la página")
+        
         # Obtener altura inicial del documento
         ultimo_alto = driver.execute_script("return document.body.scrollHeight")
         intentos = 0
@@ -57,8 +68,10 @@ def scroll_hasta_el_final(driver):
             ultimo_alto = nuevo_alto
             intentos += 1
 
+        logger.info(f"Scroll finalizado después de {intentos} intentos")
+
     except Exception as e:
-        print(f"⚠️ Error durante el scroll: {e}")
+        logger.error(f"Error durante el scroll: {e}")
 
 
 
@@ -83,9 +96,8 @@ def extraer_datos_productos(url, busqueda, fecha_extraccion, driver):
     try:
         driver.get(urlCompleta)
 
-        # Posible detección de captcha o bloqueo
         if "Verificación" in driver.title or "reCAPTCHA" in driver.page_source.lower():
-            print("⚠️ Captcha detectado o bloqueo temporal.")
+            logger.warning("Captcha detectado o bloqueo temporal en URL: %s", urlCompleta)
             return []
 
         # Espera hasta que los productos sean visibles (máx. 10s)
@@ -105,7 +117,8 @@ def extraer_datos_productos(url, busqueda, fecha_extraccion, driver):
                 producto = None
 
             try:
-                precio = int(elemento.find_element(By.CSS_SELECTOR, ".andes-money-amount__fraction").text.replace('.', ''))
+                precioTexto = elemento.find_element(By.CSS_SELECTOR, ".andes-money-amount__fraction").text.replace('.', '')
+                precio = int(precioTexto) if precioTexto.isdigit() and int(precioTexto) > 0 else None
             except NoSuchElementException:
                 precio = None
 
@@ -126,6 +139,9 @@ def extraer_datos_productos(url, busqueda, fecha_extraccion, driver):
 
             try:
                 url_producto = elemento.find_element(By.CSS_SELECTOR, ".poly-component__title-wrapper a").get_attribute("href")
+                if not url_producto.startswith("http"):
+                    url_producto = None
+                    
             except NoSuchElementException:
                 url_producto = None
 
@@ -151,11 +167,11 @@ def extraer_datos_productos(url, busqueda, fecha_extraccion, driver):
             productos.append(productoInfo)
 
     except TimeoutException:
-        print("⏰ Timeout: No se cargaron los productos a tiempo.")
+        logger.error("Timeout: No se cargaron los productos a tiempo para URL: %s", urlCompleta)
     except WebDriverException as e:
-        print(f"🌐 Error de conectividad o carga de la página: {str(e)}")
+        logger.error("Error de conectividad o carga de página: %s", str(e))
     except Exception as e:
-        print(f"⚠️ Error inesperado: {str(e)}")
+        logger.error("Error inesperado: %s", str(e))
 
     return productos
      

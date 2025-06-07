@@ -5,6 +5,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from datetime import datetime
+import logging
 
 
 
@@ -78,3 +79,20 @@ def getDriver(headless=False):
 
 # Fecha de extracción actual en formato legible
 fecha_extraccion = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+
+
+
+
+
+
+def configurar_logging():
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+
+    # Si ya hay handlers, no agregamos otros para evitar duplicados
+    if not logger.hasHandlers():
+        ch = logging.StreamHandler()  # Para consola
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        ch.setFormatter(formatter)
+        logger.addHandler(ch)
