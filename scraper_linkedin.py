@@ -11,13 +11,23 @@
 # fecha_publicacion, fecha_extraccion, url_empleo, descripcion_breve,
 # salario_estimado
 
-import time
+
+import time, random
 from config import getDriver, fecha_extraccion, LINKEDIN_USER, LINKEDIN_PASSWORD
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import ElementClickInterceptedException, StaleElementReferenceException,NoSuchElementException, WebDriverException, TimeoutException
+
+
+import logging
+from config import configurar_logging
+
+configurar_logging()
+logger = logging.getLogger(__name__)  # logger para este archivo específico
+
+
 
 
 
@@ -56,6 +66,54 @@ def login(driver):
 
 
 
+def login(driver):
+    try:
+        logger.info("Navegando a la página de login de LinkedIn...")
+        driver.get("https://www.linkedin.com/login")
+
+        wait = WebDriverWait(driver, 15)
+
+        username = wait.until(EC.presence_of_element_located((By.ID, "username")))
+        password = wait.until(EC.presence_of_element_located((By.ID, "password")))
+
+        logger.info("Campos de usuario y contraseña localizados.")
+
+        # Simular escritura humana con pequeñas pausas
+        for char in LINKEDIN_USER:
+            username.send_keys(char)
+            time.sleep(random.uniform(0.05, 0.15))
+
+        for char in LINKEDIN_PASSWORD:
+            password.send_keys(char)
+            time.sleep(random.uniform(0.05, 0.15))
+
+        login_button = wait.until(EC.element_to_be_clickable((By.XPATH, '//button[@type="submit"]')))
+        time.sleep(random.uniform(0.5, 1.0))  # Pausa antes de hacer clic
+        login_button.click()
+
+        logger.info("Botón de login clickeado. Esperando carga de la página principal...")
+
+        # Espera extendida para verificar si el login tuvo éxito (p. ej., menú de usuario visible)
+        time.sleep(random.uniform(15.0, 20.0))
+
+        if "feed" in driver.current_url:
+            logger.info("Inicio de sesión exitoso.")
+        elif "checkpoint" in driver.current_url or "challenge" in driver.current_url:
+            logger.warning("⚠️ LinkedIn ha solicitado verificación adicional. Posible captcha o doble autenticación.")
+        else:
+            logger.warning("⚠️ No se detectó URL esperada tras el login. Verificar si hubo errores.")
+
+    except TimeoutException:
+        logger.error("Timeout: Un elemento no se cargó a tiempo. Posible conexión lenta o cambios en el sitio.")
+    except NoSuchElementException:
+        logger.error("Elemento no encontrado: Es posible que la estructura HTML haya cambiado.")
+    except WebDriverException as e:
+        logger.error(f"Problema con WebDriver o conexión: {e}")
+    except Exception as e:
+        logger.exception(f"Error inesperado durante el login: {e}")
+
+
+
 
 
 
@@ -64,6 +122,7 @@ def login(driver):
 def buscador(driver, trabajoBusqueda):
     try:
         # Cargar la página de búsqueda de empleos
+        logger.info("Navegando a la página de búsqueda de empleos en LinkedIn...")
         driver.get("https://www.linkedin.com/jobs/search/")
 
         # Esperar que se cargue un elemento clave del menú superior (15s máximo)
@@ -75,25 +134,31 @@ def buscador(driver, trabajoBusqueda):
         keyword_input = driver.find_element(By.CSS_SELECTOR, "input.jobs-search-box__text-input")
         keyword_input.clear()  # Limpiar el input
         keyword_input.send_keys(trabajoBusqueda)  # Escribir el término de búsqueda
-        time.sleep(1)
+        time.sleep(random.uniform(0.5, 1.2))
 
         # Hacer clic en el botón de búsqueda
         search_button = driver.find_element(By.CLASS_NAME, "jobs-search-box__submit-button")
         search_button.click()
-        time.sleep(6)
+        logger.info(f"Búsqueda iniciada para el término: {trabajoBusqueda}")
+        time.sleep(random.uniform(5.0, 7.0))
 
-        # Verificación opcional por si aparece un captcha o bloqueo
-        if "captcha" in driver.page_source.lower():
-            print("[ADVERTENCIA] Captcha detectado tras buscar trabajo. Podría tratarse de un bloqueo temporal.")
+
+        page_source = driver.page_source.lower()
+        if "captcha" in page_source or "verifica que eres una persona" in page_source:
+            logger.warning("⚠️ Captcha detectado tras buscar trabajo. Posible bloqueo temporal.")
+
+        # Verificación de resultados (opcional)
+        if "no results found" in page_source or "no hay resultados" in page_source:
+            logger.warning("⚠️ La búsqueda no devolvió resultados.")
 
     except TimeoutException:
-        print("[ERROR] Timeout: Algún elemento no cargó a tiempo. Puede deberse a lentitud o cambios en LinkedIn.")
+        logger.error("Timeout: Algún elemento no cargó a tiempo. Puede deberse a lentitud o cambios en LinkedIn.")
     except NoSuchElementException:
-        print("[ERROR] Elemento no encontrado: Es posible que LinkedIn haya cambiado su estructura HTML.")
+        logger.error("Elemento no encontrado: Es posible que LinkedIn haya cambiado su estructura HTML.")
     except WebDriverException as e:
-        print(f"[ERROR] Problema de conectividad o WebDriver: {e}")
+        logger.error(f"Problema de conectividad o WebDriver: {e}")
     except Exception as e:
-        print(f"[ERROR] Ocurrió un error inesperado: {e}")
+        logger.exception(f"Error inesperado en la función de búsqueda: {e}")
 
 
 
@@ -178,15 +243,16 @@ def obtener_info_trabajo(id, titulo_puesto, url_empleo, fecha_extraccion, driver
         }
 
     except TimeoutException:
-        print(f"[ERROR] Timeout: No se cargaron los detalles del empleo para el ID {id}.")
+        logger.error(f"Timeout: No se cargaron los detalles del empleo para el ID {id}.")
     except NoSuchElementException:
-        print(f"[ERROR] Elemento no encontrado: Puede que LinkedIn haya cambiado su estructura para el ID {id}.")
+        logger.error(f"Elemento no encontrado para el ID {id}. Posible cambio en el DOM de LinkedIn.")
     except WebDriverException as e:
-        print(f"[ERROR] WebDriver o red: {e}")
+        logger.error(f"Error WebDriver al procesar el ID {id}: {e}")
     except Exception as e:
-        print(f"[ERROR] Error inesperado al obtener detalles del trabajo (ID {id}): {e}")
-    
-    # Si ocurre un error y no se retorna nada, devolvemos valores nulos para no romper el flujo
+        logger.exception(f"Error inesperado al obtener detalles del trabajo (ID {id}): {e}")
+
+    logger.info(f"Retornando datos nulos para el empleo ID {id} debido a un error.")
+
     return {
         "id": id,
         "titulo_puesto": titulo_puesto,
@@ -206,6 +272,9 @@ def obtener_info_trabajo(id, titulo_puesto, url_empleo, fecha_extraccion, driver
 
 def recolector(fecha_extraccion, driver):
     try:
+
+        logging.info("Iniciando recolección de trabajos en LinkedIn.")
+        
         # Esperar que aparezca el contenedor principal de la lista de trabajos
         WebDriverWait(driver, 13).until(
             EC.presence_of_element_located((By.CLASS_NAME, "scaffold-layout__content--list-detail"))
@@ -248,14 +317,16 @@ def recolector(fecha_extraccion, driver):
                 listaInfoTrabajos.append(trabajo)
 
             except (NoSuchElementException, TimeoutException, WebDriverException) as e:
-                print(f"[ERROR] No se pudo procesar job {i}: {e}")
+                logging.warning(f"[{i}] No se pudo procesar el trabajo: {e}")
                 continue  # Saltar al siguiente job si uno falla
 
+        logging.info("Recolección completada correctamente.")
         return listaInfoTrabajos
 
     except Exception as e:
-        print(f"[ERROR] Falló el recolector: {e}")
+        logging.error(f"Falló el recolector: {e}")
         return []
+    
 
 
 
