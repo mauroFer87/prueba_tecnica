@@ -12,7 +12,7 @@
 # salario_estimado
 
 import time
-from config import getDriver, fecha_extraccion, normalizar, LINKEDIN_USER, LINKEDIN_PASSOWRD
+from config import getDriver, fecha_extraccion, LINKEDIN_USER, LINKEDIN_PASSOWRD, scroll_hasta_el_final
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -21,6 +21,8 @@ from selenium.common.exceptions import ElementClickInterceptedException, StaleEl
 
 
 
+
+#Funcion para loguiarse en linkedin
 def login(driver):
     # Ir a la página de login
     driver.get("https://www.linkedin.com/login")
@@ -40,13 +42,30 @@ def login(driver):
     time.sleep(20)
 
 
+#funcion para buscar los trabajos
+def buscador(driver, trabajoBusqueda):
 
-def obtener_info_trabajo(titulo_puesto,url_empleo,fecha_extraccion,driver):
+    driver.get("https://www.linkedin.com/jobs/search/")
 
-    WebDriverWait(driver, 5).until(
+    WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.CLASS_NAME, 'global-nav__content')))
+
+    # Buscar el input del buscador
+    keyword_input = driver.find_element(By.CSS_SELECTOR, "input.jobs-search-box__text-input")
+    keyword_input.clear()
+    keyword_input.send_keys(trabajoBusqueda)
+    time.sleep(1)
+
+    # Clic en el botón buscar
+    search_button = driver.find_element(By.CLASS_NAME, "jobs-search-box__submit-button")
+    search_button.click()
+    time.sleep(6)
+
+
+def obtener_info_trabajo(id, titulo_puesto,url_empleo,fecha_extraccion,driver):
+
+    WebDriverWait(driver, 10).until(
         EC.presence_of_element_located((By.CLASS_NAME, "jobs-search__job-details--container"))
     )
-    contenedorDerecha = driver.find_element(By.CLASS_NAME, "jobs-search__job-details--container")
         
      #Div derecho, descripcion de trabajos
     contenedorDerecha = driver.find_element(By.CLASS_NAME,"jobs-search__job-details--container") 
@@ -83,15 +102,10 @@ def obtener_info_trabajo(titulo_puesto,url_empleo,fecha_extraccion,driver):
 
         for span in spans:
             texto = span.text.strip()
-            if texto and texto != '·':
+            if texto and texto != '·' and not ubicacion:
                 ubicacion = texto
-                break
-
-        for span in spans:
-            texto = span.text.strip()
-            if texto.startswith("hace"):
+            if texto.startswith("hace") and not fecha_publicacion:
                 fecha_publicacion = texto
-                break
 
     except NoSuchElementException:
         ubicacion = None
@@ -108,33 +122,26 @@ def obtener_info_trabajo(titulo_puesto,url_empleo,fecha_extraccion,driver):
 
 
 
-    return [titulo_puesto, empresa, ubicacion, modalidad, nivel_experiencia, fecha_publicacion, fecha_extraccion, url_empleo, descripcion_breve]
+    return {
+            "id" : id,
+            "titulo_puesto": titulo_puesto,
+            "empresa": empresa,
+            "ubicacion": ubicacion,
+            "modalidad": modalidad,
+            "nivel_experiencia": nivel_experiencia,
+            "fecha_publicacion": fecha_publicacion,
+            "fecha_extraccion": fecha_extraccion,
+            "url_empleo": url_empleo,
+            "descripcion_breve": descripcion_breve
+        }
 
 
 
-def buscador(driver, keyword):
-    # Setup Selenium
-    driver.get("https://www.linkedin.com/jobs/search/")
-
-    WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.CLASS_NAME, 'global-nav__content')))
-
-    # Buscar el input de keywords
-    keyword_input = driver.find_element(By.CSS_SELECTOR, "input.jobs-search-box__text-input")
-    keyword_input.clear()
-    keyword_input.send_keys(keyword)
-    time.sleep(1)
-
-    # Clic en el botón buscar
-    search_button = driver.find_element(By.CLASS_NAME, "jobs-search-box__submit-button")
-    search_button.click()
 
 
 def recolector(fecha_extraccion, driver):
-    driver.get('file:///C:/Users/mauro/OneDrive/Desktop/prueba_tecnica/prueba.html') # funcion usada para construir el codigo
-
-    #driver.get('https://www.linkedin.com/jobs/search/') # funcion real de linkedin
-    
-
+    #driver.get('file:///C:/Users/mauro/OneDrive/Desktop/prueba_tecnica/prueba.html') # funcion usada para construir el codigo
+   
     WebDriverWait(driver, 13).until(
         EC.presence_of_element_located((By.CLASS_NAME, "scaffold-layout__content--list-detail")) #UL
     )
@@ -142,18 +149,19 @@ def recolector(fecha_extraccion, driver):
     # Obtener contenedor principal, donde apararece toda la informacion necesaria
     contenedorPrincipal = driver.find_element(By.CLASS_NAME, "scaffold-layout__content--list-detail")
 
+    
     # Div principal, donde aparecen los trabajos
-    scroll_area = contenedorPrincipal.find_element(By.CLASS_NAME, "OCuhggDIOYsAstCSULrRCUjZucFwhcvBANI") #clase dinamica
-
-    #Ul de trabajos
-    contenedorIzquierda = contenedorPrincipal.find_element(By.CLASS_NAME, "UqvsszlKcsHVxKPENVjvrBhRdSmTopYxAtIreCY") #clase dinamica
-
-
+    #scroll_area = contenedorPrincipal.find_element(By.CLASS_NAME, "tSivhBFvtczkIEFnsGKTrWShmUuVkbSQ") #clase dinamica   
+    scroll_area = driver.find_element(By.XPATH, '//*[@id="main"]/div/div[2]/div[1]/div')
 
     # Scroll suave
     for i in range(0, 3000, 100):
         driver.execute_script("arguments[0].scrollTop = arguments[1];", scroll_area, i)
         time.sleep(0.2)
+
+    #Ul de trabajos
+    #contenedorIzquierda = contenedorPrincipal.find_element(By.CLASS_NAME, "UREiBoDFpFNCTlovSdZOWyybRiVqOHE") #clase dinamica
+    contenedorIzquierda = driver.find_element(By.XPATH, '//*[@id="main"]/div/div[2]/div[1]/div/ul')
 
     
     # Obtener los títulos y Links de los trabajos. Luego entrar a estos
@@ -161,8 +169,7 @@ def recolector(fecha_extraccion, driver):
 
     listaInfoTrabajos = []
 
-    for job in jobCards:
-        infoTrabajo = []
+    for i, job in enumerate(jobCards):
         try:
             titulo_puesto = job.get_attribute("aria-label")
         except NoSuchElementException:                  
@@ -173,24 +180,22 @@ def recolector(fecha_extraccion, driver):
         except NoSuchElementException:                  
             url_empleo = None
 
-        infoTrabajo.append(titulo_puesto)
-        infoTrabajo.append(url_empleo)
-        #job.click()
+        job.click()
         
-        trabajo = obtener_info_trabajo(titulo_puesto, url_empleo, fecha_extraccion, driver)
-        infoTrabajo = infoTrabajo + trabajo
-        for info in infoTrabajo:
-            print(info)
+        trabajo = obtener_info_trabajo(i, titulo_puesto, url_empleo, fecha_extraccion, driver)
+        
+        listaInfoTrabajos.append(trabajo)
 
-        break
-        listaInfoTrabajos.append(infoTrabajo)
-
+    return listaInfoTrabajos
         
 
 
 
 
 driver = getDriver()
-#login(driver)
-# buscador(driver, "desarrollador python")
-recolector(fecha_extraccion, driver)
+login(driver)
+buscador(driver, "desarrollador python")
+listaInfoTrabajos = recolector(fecha_extraccion, driver)
+
+for t in listaInfoTrabajos:
+    print(t)

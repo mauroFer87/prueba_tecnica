@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from dotenv import load_dotenv 
+import time
 
 # Cargar variables del archivo .env
 load_dotenv()
@@ -42,14 +43,30 @@ def getDriver(headless=False):
 
 
 
-import unicodedata
-
-def normalizar(texto):
-    return ''.join(
-        c for c in unicodedata.normalize('NFD', texto)
-        if unicodedata.category(c) != 'Mn'
-    ).lower()
-
-
 from datetime import datetime
 fecha_extraccion = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+
+
+def scroll_hasta_el_final(driver):
+
+    SCROLL_PAUSE_TIME = 1.5
+    MAX_SCROLL_INTENTOS = 20
+
+    try:
+        ultimo_alto = driver.execute_script("return document.body.scrollHeight")
+        intentos = 0
+
+        while intentos < MAX_SCROLL_INTENTOS:
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(SCROLL_PAUSE_TIME)
+
+            nuevo_alto = driver.execute_script("return document.body.scrollHeight")
+
+            if nuevo_alto == ultimo_alto:
+                break
+            ultimo_alto = nuevo_alto
+            intentos += 1
+
+    except Exception as e:
+        print(f"Error durante el scroll: {e}")

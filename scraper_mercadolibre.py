@@ -9,29 +9,13 @@
 
 
 import time
-from config import getDriver, fecha_extraccion
+from config import getDriver, fecha_extraccion, scroll_hasta_el_final
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException
 
 
-def scroll_hasta_el_final(driver):
-    SCROLL_PAUSE_TIME = 1.5  # Ajustá este tiempo si la conexión es lenta
-    MAX_SCROLL_INTENTOS = 20
-
-    ultimo_alto = driver.execute_script("return document.body.scrollHeight")
-    
-    intentos = 0
-    while intentos < MAX_SCROLL_INTENTOS:
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(SCROLL_PAUSE_TIME)
-
-        nuevo_alto = driver.execute_script("return document.body.scrollHeight")
-        if nuevo_alto == ultimo_alto:
-            break  # No hay más productos para cargar
-        ultimo_alto = nuevo_alto
-        intentos += 1
 
 
 
@@ -39,14 +23,15 @@ url = 'https://listado.mercadolibre.com.ar/'
 
 driver = getDriver()
 
-productos = ["notebooks", "smartphones", "electrodomesticos"]
+productosABuscar = ["notebooks", "smartphones", "electrodomesticos"]
 
 
+#esta funcion entra a una url de listado.mercadolibre y retorna la informacion de los productos en una lista
+def extraer_datos_productos(url, busqueda, fecha_extraccion, driver):
 
-def extraer_datos_productos(url, producto, fecha_extraccion, driver):
-
-    urlCompleta = url + producto
+    urlCompleta = url + busqueda
     driver.get(urlCompleta)
+    scroll_hasta_el_final(driver)
 
     productos = []
     
@@ -58,46 +43,65 @@ def extraer_datos_productos(url, producto, fecha_extraccion, driver):
     # Localizar todos los productos en la página
     todosElementosProductos = driver.find_elements(By.CSS_SELECTOR, ".ui-search-result__wrapper")
 
-    # Scroll suave
-    for i in range(0, 3000, 100):
-        driver.execute_script("window.scrollBy(0, 100);")
-        time.sleep(0.2)
 
-    for i, producto in enumerate(todosElementosProductos):
+    for i, elemento in enumerate(todosElementosProductos):
 
         try:
-            nombre = producto.find_element(By.CLASS_NAME, "poly-component__title-wrapper").text
-        except:
-            nombre = None
+            producto = elemento.find_element(By.CLASS_NAME, "poly-component__title-wrapper").text
+        except NoSuchElementException:
+            producto = None
 
         try:
-            precio_actual = producto.find_element(By.CSS_SELECTOR, ".andes-money-amount__fraction").text
-        except:
-            precio_actual = None
+            precio = int(elemento.find_element(By.CSS_SELECTOR, ".andes-money-amount__fraction").text.replace('.', ''))
+        except NoSuchElementException:
+            precio = None
+
 
         try:
-            vendedor = producto.find_element(By.CSS_SELECTOR, ".poly-component__seller").text
-        except:
+            vendedor = elemento.find_element(By.CSS_SELECTOR, ".poly-component__seller").text
+        except NoSuchElementException:
             vendedor = None
 
         try:
-            ubicacion = producto.find_element(By.CSS_SELECTOR, ".ui-search-item__location").text
-        except:
+            ubicacion = elemento.find_element(By.CSS_SELECTOR, ".ui-search-item__location").text
+        except NoSuchElementException:
             ubicacion = None
 
         try:
-            envio = producto.find_element(By.CSS_SELECTOR, ".poly-component__shipping span").text
-        except:
-            envio = None
+            reputacion_vendedor = elemento.find_element(By.CSS_SELECTOR, ".poly-reviews__rating").text
+        except NoSuchElementException:
+            reputacion_vendedor = None
+        try:
+            url_producto = elemento.find_element(By.CSS_SELECTOR, ".poly-component__title-wrapper a").get_attribute("href")
+        except NoSuchElementException:
+            url_producto = None
 
-        productos.append({
+
+        try:
+            envio_texto = elemento.find_element(By.CSS_SELECTOR, ".poly-component__shipping").text.strip().lower()
+            if envio_texto == 'envío gratis' or envio_texto.startswith('llega gratis'):
+                envio_gratis = True
+            else:
+                envio_gratis = False
+        except NoSuchElementException:
+            envio_gratis = None
+
+
+
+        productoInfo = {
             "id": i,
-            "nombre": nombre,
-            "precio": precio_actual,
+            "producto": producto,
+            "precio": precio,
+            "ubicacion": ubicacion,
             "vendedor": vendedor,
-            "envio": envio,
-            "ubicacion": ubicacion
-        })
+            "reputacion_vendedor": reputacion_vendedor,
+            "fecha_extraccion": fecha_extraccion,
+            "url_producto": url_producto,
+            "envio_gratis": envio_gratis,
+            "categoria": busqueda
+        }
+
+        productos.append(productoInfo)
 
     return productos       
 
@@ -110,5 +114,6 @@ def extraer_datos_productos(url, producto, fecha_extraccion, driver):
 
 
 
-producto = extraer_datos_productos(url,'notebooks', fecha_extraccion, driver)
-print(producto)
+# producto = extraer_datos_productos(url,'notebooks', fecha_extraccion, driver)
+# for p in producto:
+#     print(p)
